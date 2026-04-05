@@ -87,8 +87,17 @@ services:
         state.backend: hashmap
         state.checkpoints.dir: file:///opt/flink/checkpoints
         state.savepoints.dir: file:///opt/flink/savepoints
+      # Forwarded to PyFlink jobs via env vars
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_LIVE_TELEMETRY: transit-live-telemetry
+      POSTGRES_HOST: timescaledb
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-transit}
+      POSTGRES_USER: ${POSTGRES_USER:-transit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-transit_secret}
     volumes:
       - ./flink/lib:/opt/flink/lib/custom:ro
+      - ./services/flink_jobs:/opt/flink/jobs:ro
       - flink-checkpoints:/opt/flink/checkpoints
       - flink-savepoints:/opt/flink/savepoints
     networks:
@@ -114,8 +123,16 @@ services:
         jobmanager.rpc.port: 6123
         taskmanager.numberOfTaskSlots: 4
         taskmanager.memory.process.size: 2048m
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_LIVE_TELEMETRY: transit-live-telemetry
+      POSTGRES_HOST: timescaledb
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-transit}
+      POSTGRES_USER: ${POSTGRES_USER:-transit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-transit_secret}
     volumes:
       - ./flink/lib:/opt/flink/lib/custom:ro
+      - ./services/flink_jobs:/opt/flink/jobs:ro
     depends_on:
       flink-jobmanager:
         condition: service_healthy
