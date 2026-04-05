@@ -97,7 +97,7 @@ SELECT
     r.route_type,
     sga.direction_id,
     ROUND(sga.gap_duration_sec::numeric, 0) AS gap_duration_sec,
-    ROUND(sga.gap_duration_sec / 60.0, 1)   AS gap_duration_min
+    ROUND((sga.gap_duration_sec / 60.0)::numeric, 1)   AS gap_duration_min
 FROM transit.service_gap_alerts sga
 LEFT JOIN transit.routes r ON r.route_id = sga.route_id
 WHERE sga.gap_start > NOW() - INTERVAL '60 minutes'
