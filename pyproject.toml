@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transit-delay-detection"
+version = "0.1.0"
+description = "Real-time public transit delay detection for Bucharest using Kafka, Flink, and TimescaleDB."
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Robert Grancsa" },
+    { name = "Ana-Maria Toader" },
+    { name = "Andrei-Daniel Anghelescu" },
+    { name = "Rares-Alexandru Constantin" },
+]
+
+dependencies = [
+    "confluent-kafka>=2.6.0",
+    "aiohttp>=3.10.0",
+    "psycopg2-binary>=2.9.9",
+    "pandas>=2.2.0",
+    "python-dotenv>=1.0.0",
+    "protobuf>=5.27.0",
+    "gtfs-realtime-bindings>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24.0",
+    "black>=24.0",
+    "ruff>=0.6.0",
+]
+flink = [
+    "apache-flink==1.20.3",
+]
+
+[tool.setuptools.packages.find]
+include = ["config*", "services*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
