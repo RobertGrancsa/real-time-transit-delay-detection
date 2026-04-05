@@ -22,11 +22,11 @@ FROM transit.route_delay_metrics
 GROUP BY bucket, route_id, direction_id
 WITH NO DATA;
 
--- Refresh policy: materialize up to 2 hours ago, keep refreshing every 30 min
+-- Refresh policy: materialize up to 10 min ago, refresh every 5 min
 SELECT add_continuous_aggregate_policy('transit.cagg_hourly_delay',
     start_offset    => INTERVAL '24 hours',
-    end_offset      => INTERVAL '2 hours',
-    schedule_interval => INTERVAL '30 minutes',
+    end_offset      => INTERVAL '10 minutes',
+    schedule_interval => INTERVAL '5 minutes',
     if_not_exists   => TRUE
 );
 
@@ -51,8 +51,8 @@ WITH NO DATA;
 
 SELECT add_continuous_aggregate_policy('transit.cagg_daily_delay',
     start_offset    => INTERVAL '3 days',
-    end_offset      => INTERVAL '1 day',
-    schedule_interval => INTERVAL '1 hour',
+    end_offset      => INTERVAL '1 hour',
+    schedule_interval => INTERVAL '15 minutes',
     if_not_exists   => TRUE
 );
 
@@ -76,8 +76,8 @@ WITH NO DATA;
 
 SELECT add_continuous_aggregate_policy('transit.cagg_hourly_bunching',
     start_offset    => INTERVAL '24 hours',
-    end_offset      => INTERVAL '2 hours',
-    schedule_interval => INTERVAL '30 minutes',
+    end_offset      => INTERVAL '10 minutes',
+    schedule_interval => INTERVAL '5 minutes',
     if_not_exists   => TRUE
 );
 
@@ -102,8 +102,8 @@ WITH NO DATA;
 
 SELECT add_continuous_aggregate_policy('transit.cagg_hourly_speed',
     start_offset    => INTERVAL '24 hours',
-    end_offset      => INTERVAL '2 hours',
-    schedule_interval => INTERVAL '30 minutes',
+    end_offset      => INTERVAL '10 minutes',
+    schedule_interval => INTERVAL '5 minutes',
     if_not_exists   => TRUE
 );
 
@@ -128,8 +128,8 @@ WITH NO DATA;
 
 SELECT add_continuous_aggregate_policy('transit.cagg_hourly_reliability',
     start_offset    => INTERVAL '24 hours',
-    end_offset      => INTERVAL '2 hours',
-    schedule_interval => INTERVAL '30 minutes',
+    end_offset      => INTERVAL '10 minutes',
+    schedule_interval => INTERVAL '5 minutes',
     if_not_exists   => TRUE
 );
 
@@ -151,8 +151,8 @@ WITH NO DATA;
 
 SELECT add_continuous_aggregate_policy('transit.cagg_daily_fleet',
     start_offset    => INTERVAL '3 days',
-    end_offset      => INTERVAL '1 day',
-    schedule_interval => INTERVAL '1 hour',
+    end_offset      => INTERVAL '1 hour',
+    schedule_interval => INTERVAL '15 minutes',
     if_not_exists   => TRUE
 );
 
