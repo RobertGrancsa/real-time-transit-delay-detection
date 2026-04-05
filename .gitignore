@@ -1,0 +1,54 @@
+# =============================================================================
+# .gitignore — Public Transport Delay Detection
+# =============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment files (contain secrets)
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Flink connector JARs (downloaded, not committed)
+flink/lib/*.jar
+
+# Docker persistent volumes (managed by Docker, not committed)
+docker-volumes/
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# GTFS data (downloaded at runtime)
+data/
+*.zip
+
+# Grafana dashboard JSON (auto-generated, can be committed if desired)
+# grafana/provisioning/dashboards/json/
+
+# Logs
+*.log
+logs/
