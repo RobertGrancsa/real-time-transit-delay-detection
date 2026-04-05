@@ -144,7 +144,15 @@ def _bulk_insert(
     # ON CONFLICT DO NOTHING makes re-runs idempotent
     sql = f"INSERT INTO {table} ({col_list}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
 
-    rows = [tuple(row) for row in df.itertuples(index=False, name=None)]
+    # Convert float NaN → None so psycopg2 sends SQL NULL instead of NaN
+    def _sanitize(val: object) -> object:
+        if val is None:
+            return None
+        if isinstance(val, float) and pd.isna(val):
+            return None
+        return val
+
+    rows = [tuple(_sanitize(v) for v in row) for row in df.itertuples(index=False, name=None)]
     inserted = 0
     with conn.cursor() as cur:
         for i in range(0, len(rows), batch_size):

@@ -90,8 +90,8 @@ CREATE INDEX IF NOT EXISTS idx_trips_shape ON transit.trips(shape_id);
 -- This is the largest table (~62k+ trips × N stops each)
 CREATE TABLE IF NOT EXISTS transit.stop_times (
     trip_id             TEXT NOT NULL REFERENCES transit.trips(trip_id),
-    arrival_time        INTERVAL NOT NULL,
-    departure_time      INTERVAL NOT NULL,
+    arrival_time        INTERVAL,      -- nullable: GTFS allows interpolated stops
+    departure_time      INTERVAL,      -- nullable: GTFS allows interpolated stops
     stop_id             TEXT NOT NULL REFERENCES transit.stops(stop_id),
     stop_sequence       INTEGER NOT NULL,
     stop_headsign       TEXT,
