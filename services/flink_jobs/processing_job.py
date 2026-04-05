@@ -99,7 +99,7 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
     # 2a. Raw vehicle positions sink (for replay / dashboard map)
     t_env.execute_sql(f"""
         CREATE TABLE IF NOT EXISTS sink_vehicle_positions (
-            event_time       TIMESTAMP(3) WITH LOCAL TIME ZONE,
+            event_time       TIMESTAMP(3),
             vehicle_id       STRING,
             route_id         STRING,
             direction_id     SMALLINT,
@@ -108,7 +108,7 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
             longitude        DOUBLE,
             license_plate    STRING,
             trip_start_time  STRING,
-            ingested_at      TIMESTAMP(3) WITH LOCAL TIME ZONE
+            ingested_at      TIMESTAMP(3)
         ) WITH (
             {_jdbc_opts('transit.vehicle_positions')}
         )
@@ -117,15 +117,15 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
     # 2b. Route delay metrics sink
     t_env.execute_sql(f"""
         CREATE TABLE IF NOT EXISTS sink_route_delay_metrics (
-            window_start     TIMESTAMP(3) WITH LOCAL TIME ZONE,
-            window_end       TIMESTAMP(3) WITH LOCAL TIME ZONE,
+            window_start     TIMESTAMP(3),
+            window_end       TIMESTAMP(3),
             route_id         STRING,
             direction_id     SMALLINT,
             vehicle_count    INT,
             avg_delay_sec    DOUBLE,
             max_delay_sec    DOUBLE,
             min_delay_sec    DOUBLE,
-            computed_at      TIMESTAMP(3) WITH LOCAL TIME ZONE
+            computed_at      TIMESTAMP(3)
         ) WITH (
             {_jdbc_opts('transit.route_delay_metrics')}
         )
@@ -134,7 +134,7 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
     # 2c. Bunching events sink
     t_env.execute_sql(f"""
         CREATE TABLE IF NOT EXISTS sink_bunching_events (
-            event_time       TIMESTAMP(3) WITH LOCAL TIME ZONE,
+            event_time       TIMESTAMP(3),
             route_id         STRING,
             direction_id     SMALLINT,
             vehicle_a_id     STRING,
@@ -152,8 +152,8 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
     # 2d. Service gap alerts sink
     t_env.execute_sql(f"""
         CREATE TABLE IF NOT EXISTS sink_service_gap_alerts (
-            gap_start        TIMESTAMP(3) WITH LOCAL TIME ZONE,
-            gap_end          TIMESTAMP(3) WITH LOCAL TIME ZONE,
+            gap_start        TIMESTAMP(3),
+            gap_end          TIMESTAMP(3),
             route_id         STRING,
             direction_id     SMALLINT,
             gap_duration_sec DOUBLE
@@ -165,8 +165,8 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
     # 2e. Segment speed stats sink
     t_env.execute_sql(f"""
         CREATE TABLE IF NOT EXISTS sink_segment_speed_stats (
-            window_start     TIMESTAMP(3) WITH LOCAL TIME ZONE,
-            window_end       TIMESTAMP(3) WITH LOCAL TIME ZONE,
+            window_start     TIMESTAMP(3),
+            window_end       TIMESTAMP(3),
             route_id         STRING,
             direction_id     SMALLINT,
             vehicle_count    INT,
@@ -190,7 +190,7 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
     stmt_set.add_insert_sql("""
         INSERT INTO sink_vehicle_positions
         SELECT
-            event_time,
+            CAST(event_time AS TIMESTAMP(3)),
             vehicle_id,
             route_id,
             CAST(direction_id AS SMALLINT),
@@ -199,7 +199,7 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
             longitude,
             license_plate,
             trip_start_time,
-            TO_TIMESTAMP_LTZ(UNIX_TIMESTAMP(), 0) AS ingested_at
+            CAST(TO_TIMESTAMP_LTZ(UNIX_TIMESTAMP(), 0) AS TIMESTAMP(3)) AS ingested_at
         FROM kafka_telemetry
     """)
 
@@ -211,8 +211,8 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
     stmt_set.add_insert_sql("""
         INSERT INTO sink_route_delay_metrics
         SELECT
-            window_start,
-            window_end,
+            CAST(TUMBLE_START(event_time, INTERVAL '1' MINUTE) AS TIMESTAMP(3)) AS window_start,
+            CAST(TUMBLE_END(event_time, INTERVAL '1' MINUTE) AS TIMESTAMP(3))   AS window_end,
             route_id,
             CAST(direction_id AS SMALLINT),
             CAST(COUNT(DISTINCT vehicle_id) AS INT) AS vehicle_count,
@@ -246,7 +246,7 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
     stmt_set.add_insert_sql("""
         INSERT INTO sink_bunching_events
         SELECT
-            a.event_time,
+            CAST(a.event_time AS TIMESTAMP(3)),
             a.route_id,
             CAST(a.direction_id AS SMALLINT),
             a.vehicle_id AS vehicle_a_id,
@@ -274,8 +274,8 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
     stmt_set.add_insert_sql("""
         INSERT INTO sink_service_gap_alerts
         SELECT
-            window_start AS gap_start,
-            window_end   AS gap_end,
+            CAST(TUMBLE_START(event_time, INTERVAL '10' MINUTE) AS TIMESTAMP(3))  AS gap_start,
+            CAST(TUMBLE_END(event_time, INTERVAL '10' MINUTE) AS TIMESTAMP(3))    AS gap_end,
             route_id,
             CAST(direction_id AS SMALLINT),
             CAST(
@@ -301,8 +301,8 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
     stmt_set.add_insert_sql("""
         INSERT INTO sink_segment_speed_stats
         SELECT
-            window_start,
-            window_end,
+            CAST(TUMBLE_START(event_time, INTERVAL '15' MINUTE) AS TIMESTAMP(3)) AS window_start,
+            CAST(TUMBLE_END(event_time, INTERVAL '15' MINUTE) AS TIMESTAMP(3))   AS window_end,
             route_id,
             CAST(direction_id AS SMALLINT),
             CAST(COUNT(*) AS INT)           AS vehicle_count,
@@ -375,10 +375,9 @@ def main() -> None:
 
     # Set parallelism to match TaskManager slot count
     t_env.get_config().set("parallelism.default", "4")
-    # Mini-batch optimization for better throughput
-    t_env.get_config().set("table.exec.mini-batch.enabled", "true")
-    t_env.get_config().set("table.exec.mini-batch.allow-latency", "5s")
-    t_env.get_config().set("table.exec.mini-batch.size", "1000")
+    # Mark idle Kafka source subtasks so they don't block watermark progression.
+    # With 4 parallelism and 3 partitions, one subtask has no partition assigned.
+    t_env.get_config().set("table.exec.source.idle-timeout", "15s")
 
     logger.info("Building Flink pipeline — Kafka(%s) → Processing → JDBC(%s)", KAFKA_TOPIC, PG_URL)
     build_pipeline(t_env)
