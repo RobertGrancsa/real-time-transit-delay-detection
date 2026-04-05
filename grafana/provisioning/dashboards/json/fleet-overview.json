@@ -1,0 +1,482 @@
+{
+  "uid": "fleet-overview",
+  "title": "Fleet Overview",
+  "description": "Real-time Bucharest public transit fleet view — live map, KPIs, route status, and speed summary.",
+  "tags": ["transit", "fleet", "live"],
+  "timezone": "Europe/Bucharest",
+  "editable": true,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "route_type",
+        "label": "Vehicle Type",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "timescaledb" },
+        "query": "SELECT DISTINCT route_type_label AS __text, route_type::text AS __value FROM transit.v_route_types ORDER BY route_type_label",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 1,
+        "sort": 1
+      },
+      {
+        "name": "route_id",
+        "label": "Route",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "timescaledb" },
+        "query": "SELECT DISTINCT route_short_name AS __text, route_id AS __value FROM transit.v_route_types WHERE route_type IN ($route_type) ORDER BY route_short_name",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 1,
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 2,
+      "title": "Active Vehicles",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT active_vehicles AS \"Active Vehicles\" FROM transit.v_fleet_kpis",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 100 }
+            ]
+          },
+          "color": { "mode": "thresholds" },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Active Routes",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT active_routes AS \"Active Routes\" FROM transit.v_fleet_kpis",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 20 },
+              { "color": "green", "value": 50 }
+            ]
+          },
+          "color": { "mode": "thresholds" },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Avg Network Delay",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT avg_network_delay_sec AS \"Avg Delay (s)\" FROM transit.v_fleet_kpis",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 120 },
+              { "color": "red", "value": 300 }
+            ]
+          },
+          "color": { "mode": "thresholds" },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "title": "Avg Network Speed",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT avg_network_speed_kmh AS \"Avg Speed (km/h)\" FROM transit.v_fleet_kpis",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "green", "value": 20 }
+            ]
+          },
+          "color": { "mode": "thresholds" },
+          "unit": "velocitykmh"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 6,
+      "title": "Bunching Events (30m)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT bunching_events_30m AS \"Bunching Events\" FROM transit.v_fleet_kpis",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 5 },
+              { "color": "red", "value": 15 }
+            ]
+          },
+          "color": { "mode": "thresholds" },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 7,
+      "title": "Service Gaps (60m)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT service_gaps_60m AS \"Service Gaps\" FROM transit.v_fleet_kpis",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3 },
+              { "color": "red", "value": 10 }
+            ]
+          },
+          "color": { "mode": "thresholds" },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 10,
+      "title": "Live Fleet Map — Bucharest",
+      "type": "geomap",
+      "gridPos": { "h": 14, "w": 14, "x": 0, "y": 5 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT latitude, longitude, vehicle_id, route_id, license_plate, direction_id, agency_id FROM transit.v_live_fleet",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "view": {
+          "id": "coords",
+          "lat": 44.4268,
+          "lon": 26.1025,
+          "zoom": 12
+        },
+        "basemap": {
+          "type": "osm-standard",
+          "name": "OpenStreetMap"
+        },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Vehicles",
+            "config": {
+              "showLegend": true,
+              "style": {
+                "size": {
+                  "fixed": 6,
+                  "min": 4,
+                  "max": 10
+                },
+                "color": {
+                  "field": "route_id",
+                  "fixed": "semi-dark-blue"
+                },
+                "opacity": 0.8,
+                "symbol": {
+                  "mode": "fixed",
+                  "fixed": "img/icons/marker/circle.svg"
+                }
+              }
+            },
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "tooltip": true
+          }
+        ],
+        "tooltip": {
+          "mode": "details"
+        },
+        "controls": {
+          "showZoom": true,
+          "mouseWheelZoom": true,
+          "showAttribution": true,
+          "showScale": true
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Route Status",
+      "type": "table",
+      "gridPos": { "h": 14, "w": 10, "x": 14, "y": 5 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT route_short_name AS \"Route\", CASE route_type WHEN 0 THEN 'Tram' WHEN 1 THEN 'Metro' WHEN 3 THEN 'Bus' WHEN 11 THEN 'Trolleybus' ELSE 'Other' END AS \"Type\", vehicle_count AS \"Vehicles\", avg_delay_sec AS \"Avg Delay (s)\", max_delay_sec AS \"Max Delay (s)\", status AS \"Status\" FROM transit.v_route_status ORDER BY avg_delay_sec DESC NULLS LAST",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "filterable": true
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Status" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "critical": { "text": "Critical", "color": "red" } } },
+                  { "type": "value", "options": { "warning": { "text": "Warning", "color": "yellow" } } },
+                  { "type": "value", "options": { "normal": { "text": "Normal", "color": "green" } } }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Avg Delay (s)", "desc": true }],
+        "footer": { "show": false }
+      }
+    },
+    {
+      "id": 20,
+      "title": "Route Speed Summary",
+      "type": "table",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 19 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT route_short_name AS \"Route\", CASE route_type WHEN 0 THEN 'Tram' WHEN 1 THEN 'Metro' WHEN 3 THEN 'Bus' WHEN 11 THEN 'Trolleybus' ELSE 'Other' END AS \"Type\", vehicle_count AS \"Vehicles\", avg_speed_kmh AS \"Avg Speed\", min_speed_kmh AS \"Min Speed\", max_speed_kmh AS \"Max Speed\", traffic_status AS \"Traffic\" FROM transit.v_route_speed_summary ORDER BY avg_speed_kmh ASC NULLS LAST",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "align": "auto", "filterable": true }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Traffic" },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": { "type": "color-background", "mode": "basic" }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "congested": { "text": "Congested", "color": "red" } } },
+                  { "type": "value", "options": { "slow": { "text": "Slow", "color": "yellow" } } },
+                  { "type": "value", "options": { "normal": { "text": "Normal", "color": "green" } } }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Avg Speed" },
+            "properties": [{ "id": "unit", "value": "velocitykmh" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Min Speed" },
+            "properties": [{ "id": "unit", "value": "velocitykmh" }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Max Speed" },
+            "properties": [{ "id": "unit", "value": "velocitykmh" }]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Avg Speed", "desc": false }],
+        "footer": { "show": false }
+      }
+    },
+    {
+      "id": 21,
+      "title": "Daily Fleet Activity",
+      "type": "timeseries",
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 19 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT bucket AS time, unique_vehicles AS \"Vehicles\", unique_routes AS \"Routes\", total_position_reports AS \"Position Reports\" FROM transit.cagg_daily_fleet WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() ORDER BY bucket",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 60,
+            "barAlignment": 0,
+            "stacking": { "mode": "none" },
+            "lineWidth": 1
+          },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Position Reports" },
+            "properties": [
+              { "id": "custom.axisPlacement", "value": "right" },
+              { "id": "custom.drawStyle", "value": "line" },
+              { "id": "custom.fillOpacity", "value": 10 }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}
