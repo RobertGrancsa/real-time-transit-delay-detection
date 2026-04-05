@@ -54,7 +54,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT event_time AS \"Time\", route_short_name AS \"Route\", CASE route_type WHEN 0 THEN 'Tram' WHEN 1 THEN 'Metro' WHEN 3 THEN 'Bus' WHEN 11 THEN 'Trolleybus' ELSE 'Other' END AS \"Type\", vehicle_a_id AS \"Vehicle A\", vehicle_b_id AS \"Vehicle B\", gap_seconds AS \"Gap (s)\", ROUND(lat_a::numeric, 5) || ', ' || ROUND(lon_a::numeric, 5) AS \"Location A\", ROUND(lat_b::numeric, 5) || ', ' || ROUND(lon_b::numeric, 5) AS \"Location B\" FROM transit.v_active_bunching WHERE ($__all = '$__all' OR route_id IN ($route_id)) ORDER BY event_time DESC LIMIT 100",
+          "rawSql": "SELECT event_time AS \"Time\", route_short_name AS \"Route\", CASE route_type WHEN 0 THEN 'Tram' WHEN 1 THEN 'Metro' WHEN 3 THEN 'Bus' WHEN 11 THEN 'Trolleybus' ELSE 'Other' END AS \"Type\", vehicle_a_id AS \"Vehicle A\", vehicle_b_id AS \"Vehicle B\", gap_seconds AS \"Gap (s)\", ROUND(lat_a::numeric, 5) || ', ' || ROUND(lon_a::numeric, 5) AS \"Location A\", ROUND(lat_b::numeric, 5) || ', ' || ROUND(lon_b::numeric, 5) AS \"Location B\" FROM transit.v_active_bunching WHERE route_id IN ($route_id) ORDER BY event_time DESC LIMIT 100",
           "format": "table",
           "refId": "A"
         }
@@ -106,7 +106,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT lat_a AS latitude, lon_a AS longitude, route_short_name AS \"Route\", gap_seconds AS \"Gap (s)\", vehicle_a_id || ' ↔ ' || vehicle_b_id AS \"Vehicles\" FROM transit.v_active_bunching WHERE ($__all = '$__all' OR route_id IN ($route_id)) LIMIT 200",
+          "rawSql": "SELECT lat_a AS latitude, lon_a AS longitude, route_short_name AS \"Route\", gap_seconds AS \"Gap (s)\", vehicle_a_id || ' ↔ ' || vehicle_b_id AS \"Vehicles\" FROM transit.v_active_bunching WHERE route_id IN ($route_id) LIMIT 200",
           "format": "table",
           "refId": "A"
         }
@@ -156,7 +156,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT bucket AS time, route_id AS metric, bunching_count AS \"Events\" FROM transit.cagg_hourly_bunching WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND ($__all = '$__all' OR route_id IN ($route_id)) ORDER BY bucket",
+          "rawSql": "SELECT bucket AS time, route_id AS metric, bunching_count AS \"Events\" FROM transit.cagg_hourly_bunching WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND route_id IN ($route_id) ORDER BY bucket",
           "format": "time_series",
           "refId": "A"
         }
@@ -195,7 +195,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT gap_start AS \"Gap Start\", gap_end AS \"Gap End\", route_short_name AS \"Route\", CASE route_type WHEN 0 THEN 'Tram' WHEN 1 THEN 'Metro' WHEN 3 THEN 'Bus' WHEN 11 THEN 'Trolleybus' ELSE 'Other' END AS \"Type\", direction_id AS \"Dir\", gap_duration_min AS \"Duration (min)\", gap_duration_sec AS \"Duration (s)\" FROM transit.v_active_service_gaps WHERE ($__all = '$__all' OR route_id IN ($route_id)) ORDER BY gap_duration_sec DESC LIMIT 50",
+          "rawSql": "SELECT gap_start AS \"Gap Start\", gap_end AS \"Gap End\", route_short_name AS \"Route\", CASE route_type WHEN 0 THEN 'Tram' WHEN 1 THEN 'Metro' WHEN 3 THEN 'Bus' WHEN 11 THEN 'Trolleybus' ELSE 'Other' END AS \"Type\", direction_id AS \"Dir\", gap_duration_min AS \"Duration (min)\", gap_duration_sec AS \"Duration (s)\" FROM transit.v_active_service_gaps WHERE route_id IN ($route_id) ORDER BY gap_duration_sec DESC LIMIT 50",
           "format": "table",
           "refId": "A"
         }
@@ -250,7 +250,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT bucket AS time, route_id AS metric, gap_count AS \"Gap Count\" FROM transit.cagg_hourly_reliability WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND ($__all = '$__all' OR route_id IN ($route_id)) ORDER BY bucket",
+          "rawSql": "SELECT bucket AS time, route_id AS metric, gap_count AS \"Gap Count\" FROM transit.cagg_hourly_reliability WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND route_id IN ($route_id) ORDER BY bucket",
           "format": "time_series",
           "refId": "A"
         }
@@ -290,7 +290,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT bucket AS time, route_id AS metric, ROUND((total_gap_sec / 60.0)::numeric, 1) AS \"Gap Duration (min)\" FROM transit.cagg_hourly_reliability WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND ($__all = '$__all' OR route_id IN ($route_id)) ORDER BY bucket",
+          "rawSql": "SELECT bucket AS time, route_id AS metric, ROUND((total_gap_sec / 60.0)::numeric, 1) AS \"Gap Duration (min)\" FROM transit.cagg_hourly_reliability WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND route_id IN ($route_id) ORDER BY bucket",
           "format": "time_series",
           "refId": "A"
         }
@@ -321,7 +321,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT COALESCE(r.route_short_name, rel.route_id) AS metric, SUM(rel.gap_count) AS \"Total Gaps\" FROM transit.cagg_hourly_reliability rel LEFT JOIN transit.routes r ON r.route_id = rel.route_id WHERE rel.bucket BETWEEN $__timeFrom() AND $__timeTo() AND ($__all = '$__all' OR rel.route_id IN ($route_id)) GROUP BY COALESCE(r.route_short_name, rel.route_id) ORDER BY \"Total Gaps\" DESC LIMIT 10",
+          "rawSql": "SELECT COALESCE(r.route_short_name, rel.route_id) AS metric, SUM(rel.gap_count) AS \"Total Gaps\" FROM transit.cagg_hourly_reliability rel LEFT JOIN transit.routes r ON r.route_id = rel.route_id WHERE rel.bucket BETWEEN $__timeFrom() AND $__timeTo() AND rel.route_id IN ($route_id) GROUP BY COALESCE(r.route_short_name, rel.route_id) ORDER BY \"Total Gaps\" DESC LIMIT 10",
           "format": "table",
           "refId": "A"
         }

@@ -54,7 +54,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT bucket AS time, route_id || COALESCE(' — ' || (SELECT route_short_name FROM transit.routes r WHERE r.route_id = h.route_id), '') AS metric, avg_delay_sec AS \"Avg Delay\" FROM transit.cagg_hourly_delay h WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND ($__all = '$__all' OR route_id IN ($route_id)) ORDER BY bucket",
+          "rawSql": "SELECT bucket AS time, route_id || COALESCE(' — ' || (SELECT route_short_name FROM transit.routes r WHERE r.route_id = h.route_id), '') AS metric, avg_delay_sec AS \"Avg Delay\" FROM transit.cagg_hourly_delay h WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND route_id IN ($route_id) ORDER BY bucket",
           "format": "time_series",
           "refId": "A"
         }
@@ -96,7 +96,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT bucket AS time, route_id AS metric, max_delay_sec AS \"Peak Delay\" FROM transit.cagg_hourly_delay WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND ($__all = '$__all' OR route_id IN ($route_id)) ORDER BY bucket",
+          "rawSql": "SELECT bucket AS time, route_id AS metric, max_delay_sec AS \"Peak Delay\" FROM transit.cagg_hourly_delay WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND route_id IN ($route_id) ORDER BY bucket",
           "format": "time_series",
           "refId": "A"
         }
@@ -128,7 +128,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT bucket AS time, route_id AS metric, total_observations AS \"Observations\" FROM transit.cagg_hourly_delay WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND ($__all = '$__all' OR route_id IN ($route_id)) ORDER BY bucket",
+          "rawSql": "SELECT bucket AS time, route_id AS metric, total_observations AS \"Observations\" FROM transit.cagg_hourly_delay WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND route_id IN ($route_id) ORDER BY bucket",
           "format": "time_series",
           "refId": "A"
         }
@@ -167,7 +167,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT COALESCE(r.route_short_name, d.route_id) AS \"Route\", ROUND(AVG(d.avg_delay_sec)::numeric, 1) AS \"Avg Delay (s)\", ROUND(MAX(d.peak_delay_sec)::numeric, 1) AS \"Peak Delay (s)\" FROM transit.cagg_daily_delay d LEFT JOIN transit.routes r ON r.route_id = d.route_id WHERE d.bucket BETWEEN $__timeFrom() AND $__timeTo() AND ($__all = '$__all' OR d.route_id IN ($route_id)) GROUP BY COALESCE(r.route_short_name, d.route_id) ORDER BY \"Avg Delay (s)\" DESC LIMIT 20",
+          "rawSql": "SELECT COALESCE(r.route_short_name, d.route_id) AS \"Route\", ROUND(AVG(d.avg_delay_sec)::numeric, 1) AS \"Avg Delay (s)\", ROUND(MAX(d.peak_delay_sec)::numeric, 1) AS \"Peak Delay (s)\" FROM transit.cagg_daily_delay d LEFT JOIN transit.routes r ON r.route_id = d.route_id WHERE d.bucket BETWEEN $__timeFrom() AND $__timeTo() AND d.route_id IN ($route_id) GROUP BY COALESCE(r.route_short_name, d.route_id) ORDER BY \"Avg Delay (s)\" DESC LIMIT 20",
           "format": "table",
           "refId": "A"
         }
@@ -198,7 +198,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT bucket AS time, COALESCE(r.route_short_name, d.route_id) AS metric, d.avg_delay_sec AS \"Delay\" FROM transit.cagg_daily_delay d LEFT JOIN transit.routes r ON r.route_id = d.route_id WHERE d.bucket BETWEEN $__timeFrom() AND $__timeTo() AND ($__all = '$__all' OR d.route_id IN ($route_id)) ORDER BY bucket",
+          "rawSql": "SELECT bucket AS time, COALESCE(r.route_short_name, d.route_id) AS metric, d.avg_delay_sec AS \"Delay\" FROM transit.cagg_daily_delay d LEFT JOIN transit.routes r ON r.route_id = d.route_id WHERE d.bucket BETWEEN $__timeFrom() AND $__timeTo() AND d.route_id IN ($route_id) ORDER BY bucket",
           "format": "time_series",
           "refId": "A"
         }
@@ -247,7 +247,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT bucket AS time, route_id AS metric, avg_speed_kmh AS \"Avg Speed\" FROM transit.cagg_hourly_speed WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND ($__all = '$__all' OR route_id IN ($route_id)) ORDER BY bucket",
+          "rawSql": "SELECT bucket AS time, route_id AS metric, avg_speed_kmh AS \"Avg Speed\" FROM transit.cagg_hourly_speed WHERE bucket BETWEEN $__timeFrom() AND $__timeTo() AND route_id IN ($route_id) ORDER BY bucket",
           "format": "time_series",
           "refId": "A"
         }
@@ -287,7 +287,7 @@
       "datasource": { "type": "postgres", "uid": "timescaledb" },
       "targets": [
         {
-          "rawSql": "SELECT COALESCE(r.route_short_name, s.route_id) AS metric, ROUND(AVG(s.avg_speed_kmh)::numeric, 1) AS \"Avg Speed\" FROM transit.cagg_hourly_speed s LEFT JOIN transit.routes r ON r.route_id = s.route_id WHERE s.bucket BETWEEN $__timeFrom() AND $__timeTo() AND ($__all = '$__all' OR s.route_id IN ($route_id)) GROUP BY COALESCE(r.route_short_name, s.route_id) ORDER BY \"Avg Speed\" ASC LIMIT 15",
+          "rawSql": "SELECT COALESCE(r.route_short_name, s.route_id) AS metric, ROUND(AVG(s.avg_speed_kmh)::numeric, 1) AS \"Avg Speed\" FROM transit.cagg_hourly_speed s LEFT JOIN transit.routes r ON r.route_id = s.route_id WHERE s.bucket BETWEEN $__timeFrom() AND $__timeTo() AND s.route_id IN ($route_id) GROUP BY COALESCE(r.route_short_name, s.route_id) ORDER BY \"Avg Speed\" ASC LIMIT 15",
           "format": "table",
           "refId": "A"
         }

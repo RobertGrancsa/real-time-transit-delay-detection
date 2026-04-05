@@ -13,6 +13,7 @@ datasources:
     user: transit
     isDefault: true
     jsonData:
+      database: transit
       sslmode: disable
       maxOpenConns: 10
       maxIdleConns: 5
