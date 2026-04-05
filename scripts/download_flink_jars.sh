@@ -14,8 +14,8 @@ mkdir -p "${TARGET_DIR}"
 MAVEN_CENTRAL="https://repo1.maven.org/maven2"
 
 declare -A JARS=(
-    # Kafka connector for Flink 1.20
-    ["flink-connector-kafka-3.3.0-1.20.jar"]="${MAVEN_CENTRAL}/org/apache/flink/flink-connector-kafka/3.3.0-1.20/flink-connector-kafka-3.3.0-1.20.jar"
+    # Kafka SQL connector for Flink 1.20 (fat JAR — bundles kafka-clients)
+    ["flink-sql-connector-kafka-3.3.0-1.20.jar"]="${MAVEN_CENTRAL}/org/apache/flink/flink-sql-connector-kafka/3.3.0-1.20/flink-sql-connector-kafka-3.3.0-1.20.jar"
     # JDBC connector for Flink
     ["flink-connector-jdbc-3.2.0-1.19.jar"]="${MAVEN_CENTRAL}/org/apache/flink/flink-connector-jdbc/3.2.0-1.19/flink-connector-jdbc-3.2.0-1.19.jar"
     # PostgreSQL JDBC driver
