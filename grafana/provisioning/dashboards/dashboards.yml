@@ -1,0 +1,16 @@
+# Grafana Dashboard Provisioning
+# Dashboards placed in /var/lib/grafana/dashboards/ will be auto-loaded.
+
+apiVersion: 1
+
+providers:
+  - name: Transit Dashboards
+    orgId: 1
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards/json
+      foldersFromFilesStructure: false

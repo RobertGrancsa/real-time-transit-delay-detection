@@ -1,0 +1,23 @@
+# Grafana Datasource Provisioning — TimescaleDB (PostgreSQL)
+# Auto-configured on Grafana startup.
+
+apiVersion: 1
+
+datasources:
+  - name: TimescaleDB
+    type: postgres
+    access: proxy
+    url: timescaledb:5432
+    database: transit
+    user: transit
+    isDefault: true
+    jsonData:
+      sslmode: disable
+      maxOpenConns: 10
+      maxIdleConns: 5
+      connMaxLifetime: 14400
+      postgresVersion: 1600  # PostgreSQL 16
+      timescaledb: true
+    secureJsonData:
+      password: transit_secret
+    editable: true
