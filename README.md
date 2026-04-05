@@ -144,7 +144,7 @@ docker compose ps
 
 | Service | Port | URL |
 |---------|------|-----|
-| Kafka | 9092 | — |
+| Kafka | 9094 | — |
 | TimescaleDB | 5433 | `psql -h localhost -p 5433 -U transit -d transit` |
 | Flink Web UI | 8081 | http://localhost:8081 |
 | Grafana | 3000 | http://localhost:3000 (admin / admin) |

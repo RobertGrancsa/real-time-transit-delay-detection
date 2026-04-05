@@ -9,19 +9,19 @@ services:
     container_name: transit-kafka
     hostname: kafka
     ports:
-      - "9092:9092"
+      - "9094:9094"
     environment:
       # KRaft combined broker + controller on a single node
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
 
-      # Listeners — PLAINTEXT for clients, CONTROLLER for internal raft
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      # Listeners — INTERNAL for Docker containers, EXTERNAL for host, CONTROLLER for raft
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:9094,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
 
       # Topic defaults
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -73,7 +73,10 @@ services:
   # Apache Flink — JobManager (coordinates jobs, hosts web UI on :8081)
   # ---------------------------------------------------------------------------
   flink-jobmanager:
-    image: apache/flink:1.20.3-java17
+    build:
+      context: .
+      dockerfile: flink/Dockerfile
+    image: transit-flink-pyflink:1.20.3
     container_name: transit-flink-jobmanager
     hostname: flink-jobmanager
     ports:
@@ -96,7 +99,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-transit}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-transit_secret}
     volumes:
-      - ./flink/lib:/opt/flink/lib/custom:ro
       - ./services/flink_jobs:/opt/flink/jobs:ro
       - flink-checkpoints:/opt/flink/checkpoints
       - flink-savepoints:/opt/flink/savepoints
@@ -113,7 +115,10 @@ services:
   # Apache Flink — TaskManager (executes tasks, 4 slots for parallelism)
   # ---------------------------------------------------------------------------
   flink-taskmanager:
-    image: apache/flink:1.20.3-java17
+    build:
+      context: .
+      dockerfile: flink/Dockerfile
+    image: transit-flink-pyflink:1.20.3
     container_name: transit-flink-taskmanager
     hostname: flink-taskmanager
     command: taskmanager
@@ -131,7 +136,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-transit}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-transit_secret}
     volumes:
-      - ./flink/lib:/opt/flink/lib/custom:ro
       - ./services/flink_jobs:/opt/flink/jobs:ro
     depends_on:
       flink-jobmanager:
