@@ -52,7 +52,7 @@ services:
     container_name: transit-timescaledb
     hostname: timescaledb
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-transit}
       POSTGRES_USER: ${POSTGRES_USER:-transit}
