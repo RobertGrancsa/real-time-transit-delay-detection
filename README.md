@@ -17,24 +17,18 @@ A smart-city stream-processing system that monitors the Bucharest public transit
 
 ## Architecture
 
-```
-┌──────────────┐    JSON/10s     ┌──────────────┐   transit-live-   ┌──────────────────┐
-│  TPBI mo-bi  │ ──────────────► │    Kafka      │   telemetry      │   Apache Flink   │
-│  Live API    │   (aiohttp)     │  (KRaft 4.0)  │ ───────────────► │  (PyFlink 1.20)  │
-└──────────────┘                 └──────────────┘                   └────────┬─────────┘
-                                                                             │
-┌──────────────┐    Bulk SQL     ┌──────────────┐    JDBC sinks     ┌────────▼─────────┐
-│  TPBI GTFS   │ ──────────────► │ TimescaleDB  │ ◄──────────────── │  5 Analytics     │
-│  Static Feed │   (psycopg2)    │  (PG 16)     │                   │  Hypertables     │
-└──────────────┘                 └──────┬───────┘                   └──────────────────┘
-                                        │
-                                        │  SQL views +
-                                        │  continuous aggregates
-                                        ▼
-                                 ┌──────────────┐
-                                 │   Grafana     │
-                                 │  3 Dashboards │
-                                 └──────────────┘
+```mermaid
+graph LR
+    A["TPBI mo-bi\nLive API"] -->|"JSON / 10s\n(aiohttp)"| B["Kafka\n(KRaft 4.0)"]
+    B -->|"transit-live-\ntelemetry"| C["Apache Flink\n(PyFlink 1.20)"]
+    C -->|"JDBC sinks"| D["TimescaleDB\n(PG 16)"]
+    E["TPBI GTFS\nStatic Feed"] -->|"Bulk SQL\n(psycopg2)"| D
+    D -->|"SQL views +\ncontinuous aggregates"| F["Grafana\n3 Dashboards"]
+
+    subgraph Analytics
+        C --> G["5 Analytics\nHypertables"]
+        G --> D
+    end
 ```
 
 **Data flow:** The live producer polls vehicle positions every 10 seconds from the TPBI REST API, sanitizes them, and publishes to a Kafka topic. Apache Flink consumes the stream, applies tumbling-window aggregations (1-min delay, 30-sec bunching, 10-min gap detection, 15-min speed stats), and sinks results into five TimescaleDB hypertables via JDBC. Grafana reads pre-built SQL views and continuous aggregates to power three dashboards.
