@@ -1,6 +1,6 @@
 # Real-Time Public Transit Delay Detection for Bucharest
 
-A smart-city stream-processing system that monitors the Bucharest public transit network in real time. It ingests live GPS vehicle telemetry from the TPBI open-data API, compares it against planned GTFS schedules, and surfaces delay metrics, route bunching events, service gap alerts, and speed analytics through auto-provisioned Grafana dashboards.
+A smart-city stream-processing and prediction system for the Bucharest public transit network. It ingests live GPS vehicle telemetry from the TPBI/mo-bi public API, loads the TPBI GTFS static schedule, computes real-time operational metrics, matches live vehicles to GTFS stops for true schedule delay, and generates route delay predictions from the resulting feature windows.
 
 ## Table of Contents
 
@@ -10,6 +10,7 @@ A smart-city stream-processing system that monitors the Bucharest public transit
 - [Prerequisites](#prerequisites)
 - [Getting Started](#getting-started)
 - [Data Sources](#data-sources)
+- [Metric Definitions And Prediction](#metric-definitions-and-prediction)
 - [Grafana Dashboards](#grafana-dashboards)
 - [Team Contributions](#team-contributions)
 
@@ -23,6 +24,8 @@ graph LR
     B -->|"transit-live-\ntelemetry"| C["Apache Flink\n(PyFlink 1.20)"]
     C -->|"JDBC sinks"| D["TimescaleDB\n(PG 16)"]
     E["TPBI GTFS\nStatic Feed"] -->|"Bulk SQL\n(psycopg2)"| D
+    D -->|"recent positions +\nGTFS tables"| H["GTFS Matcher\nPython worker"]
+    H -->|"stop delay +\nfeature windows"| D
     D -->|"SQL views +\ncontinuous aggregates"| F["Grafana\n3 Dashboards"]
 
     subgraph Analytics
@@ -31,7 +34,9 @@ graph LR
     end
 ```
 
-**Data flow:** The live producer polls vehicle positions every 10 seconds from the TPBI REST API, sanitizes them, and publishes to a Kafka topic. Apache Flink consumes the stream, applies tumbling-window aggregations (1-min delay, 30-sec bunching, 10-min gap detection, 15-min speed stats), and sinks results into five TimescaleDB hypertables via JDBC. Grafana reads pre-built SQL views and continuous aggregates to power three dashboards.
+**Data flow:** The live producer polls vehicle positions every 10 seconds from the TPBI REST API, sanitizes them, and publishes to a Kafka topic. Apache Flink consumes the stream, writes raw positions, detects bunching and service gaps, computes speed windows, and records telemetry freshness as a separate data-quality metric. GTFS static data is bulk-loaded into TimescaleDB. The `gtfs-matcher` worker reads recent vehicle positions and GTFS tables, writes true stop-level schedule delay events, refreshes route delay metrics, dwell times, geographic hotspots, and feature windows, then the predictor reads those windows for route delay forecasts.
+
+**Current implementation status:** The original GPS timestamp-age proxy has been separated into `transit.telemetry_freshness_metrics`. The operational delay path is now GTFS-based: `gtfs-matcher` populates `transit.stop_delay_events` and refreshes true `transit.route_delay_metrics`, `transit.stop_dwell_times`, `transit.geo_delay_hotspots`, and `transit.realtime_feature_windows`.
 
 ---
 
@@ -44,7 +49,7 @@ graph LR
 | Database | TimescaleDB | latest-pg16 | Time-series storage with hypertables & continuous aggregates |
 | Visualization | Grafana | latest | Auto-provisioned dashboards |
 | Language | Python | ≥ 3.10 | asyncio producer, GTFS loader, PyFlink jobs |
-| Orchestration | Docker Compose | 3.9 | Single-command local deployment |
+| Orchestration | Docker Compose | 3.9 | Local infrastructure and GTFS matcher deployment |
 
 ---
 
@@ -52,9 +57,13 @@ graph LR
 
 ```
 public-transport-delay-detection/
-├── docker-compose.yml              # Full infrastructure (5 services)
+├── docker-compose.yml              # Infrastructure plus GTFS matcher worker
+├── Dockerfile                      # Python worker image for matcher services
 ├── pyproject.toml                  # Python project metadata & dependencies
 ├── .env.example                    # Environment variable template
+│
+├── docs/
+│   └── analytics_spec.md           # Data sources, metric contracts, prediction targets
 │
 ├── config/
 │   └── settings.py                 # Centralized env-var configuration (frozen dataclasses)
@@ -62,10 +71,16 @@ public-transport-delay-detection/
 ├── services/
 │   ├── gtfs_ingestion/
 │   │   └── loader.py               # Downloads & bulk-loads TPBI GTFS into PostgreSQL
+│   ├── gtfs_matching/
+│   │   └── matcher.py              # Matches live positions to GTFS stop_times
 │   ├── live_producer/
 │   │   └── producer.py             # Async Kafka producer polling live vehicle API
-│   └── flink_jobs/
-│       └── processing_job.py       # PyFlink pipeline: Kafka → windows → JDBC sinks
+│   ├── model_training/
+│   │   └── feature_engineer.py      # Feature extraction and target construction
+│   ├── flink_jobs/
+│   │   └── processing_job.py       # PyFlink pipeline: Kafka → windows → JDBC sinks
+│   └── predictor/
+│       └── predictor.py            # Batch inference writer for route delay predictions
 │
 ├── sql/
 │   ├── init.sql                    # TimescaleDB extension + transit schema bootstrap
@@ -73,10 +88,14 @@ public-transport-delay-detection/
 │       ├── 001_gtfs_tables.sql     # 7 GTFS relational tables (agency → stop_times)
 │       ├── 002_analytics_tables.sql# 5 hypertables with retention policies
 │       ├── 003_grafana_views.sql   # 7 dashboard-ready views
-│       └── 004_continuous_aggregates.sql  # 6 auto-refreshing materialized views
+│       ├── 004_continuous_aggregates.sql  # 6 auto-refreshing materialized views
+│       ├── 005_prediction_tables.sql# delay events, feature store, predictions, hotspots
+│       ├── 006_prediction_views.sql # prediction and root-cause Grafana views
+│       └── 007_gtfs_matching_runtime.sql # matcher indexes for running DBs
 │
 ├── scripts/
 │   ├── migrate.py                  # Migration runner with ledger tracking
+│   ├── train_delay_model.py         # Train delay model from feature windows
 │   ├── download_flink_jars.{sh,ps1}# Download Flink connector JARs
 │   └── submit_flink_job.{sh,ps1}  # Submit PyFlink job to cluster
 │
@@ -89,6 +108,7 @@ public-transport-delay-detection/
 │           ├── delay-analytics.json    # Delay trends + speed analysis
 │           └── anomaly-detection.json  # Bunching + service gaps + reliability
 │
+├── tests/                          # Unit tests for config, features, matcher, and predictions
 └── flink/lib/                      # Flink connector JARs (downloaded via script)
 ```
 
@@ -138,7 +158,7 @@ docker compose ps
 
 | Service | Port | URL |
 |---------|------|-----|
-| Kafka | 9094 | — |
+| Kafka | 9094 | - |
 | TimescaleDB | 5433 | `psql -h localhost -p 5433 -U transit -d transit` |
 | Flink Web UI | 8081 | http://localhost:8081 |
 | Grafana | 3000 | http://localhost:3000 (admin / admin) |
@@ -155,7 +175,7 @@ pip install -e ".[dev]"
 python scripts/migrate.py
 ```
 
-This applies all four SQL migrations in order (GTFS tables → analytics hypertables → Grafana views → continuous aggregates). Use `--status` to check what's applied, `--dry-run` to preview.
+This applies all SQL migrations in order: GTFS tables, analytics hypertables, Grafana views, continuous aggregates, prediction tables, prediction views, and matcher runtime indexes. Use `--status` to check what's applied, `--dry-run` to preview.
 
 ### 6. Load GTFS static data
 
@@ -185,9 +205,44 @@ Polls `https://maps.mo-bi.ro/api/busData` every 10 seconds and publishes sanitiz
 
 This installs PyFlink in the JobManager container, copies connector JARs, and submits the processing pipeline. Monitor it at http://localhost:8081.
 
-### 9. Open Grafana
+### 9. Run the GTFS matcher
 
-Navigate to http://localhost:3000 (default credentials: `admin` / `admin`). Three dashboards are auto-provisioned under **Transit Dashboards**.
+Start or refresh the GTFS matcher first so `transit.stop_delay_events` and `transit.realtime_feature_windows` are populated from the live feed and GTFS schedules:
+
+```bash
+docker compose up -d --build gtfs-matcher
+
+# or run one local cycle after migrations, GTFS load, producer, and Flink are active
+python -m services.gtfs_matching.matcher --once
+```
+
+For continuous local execution outside Docker, omit `--once`.
+
+### 10. Train the delay model (after feature windows exist)
+
+```bash
+pip install -e ".[ml]"
+python scripts/train_delay_model.py --days 30
+```
+
+The model trains from `transit.realtime_feature_windows` and writes a versioned artifact to `models/delay_model.joblib` by default.
+
+### 11. Run prediction inference
+
+```bash
+python -m services.predictor.predictor --once
+
+# or run it continuously in Docker
+docker compose up -d --build delay-predictor
+```
+
+This loads the trained model when `models/delay_model.joblib` exists. Before enough future-labeled windows exist for supervised training, it falls back to a warm-start baseline built from current GTFS delay, speed, bunching, service-gap, freshness, dwell, and hotspot features, then writes forecasts to `transit.route_delay_predictions`.
+
+### 12. Open Grafana
+
+Navigate to http://localhost:3000. Local anonymous Viewer access is enabled for dashboards, and four dashboards are auto-provisioned under **Transit Dashboards**.
+
+Open the new GTFS and prediction dashboard directly at http://localhost:3000/d/gtfs-delay-predictions/gtfs-delay-and-predictions.
 
 ---
 
@@ -198,13 +253,40 @@ Navigate to http://localhost:3000 (default credentials: `admin` / `admin`). Thre
 - **URL:** `https://gtfs.tpbi.ro/regional/BUCHAREST-REGION.zip`
 - **Contents:** 199 routes, 4,552 stops, 61,438 trips, 404 shapes
 - **Agencies:** STB SA, STV SA, STCM, METROREX SA, Regio Serv Transport
-- **Format:** Standard GTFS (CSV files in ZIP)
+- **Format:** Standard GTFS ZIP containing CSV files such as `agency.txt`, `routes.txt`, `stops.txt`, `trips.txt`, `stop_times.txt`, `calendar.txt`, and `shapes.txt`
+- **Ingestion mode:** Batch download and bulk insert into PostgreSQL/TimescaleDB
+- **Use in analytics:** planned schedule, trip and stop matching, route type analysis, route geometry, and prediction context
 
 ### Live Vehicle Positions API
 - **URL:** `https://maps.mo-bi.ro/api/busData`
 - **Auth:** None required (public open-data endpoint)
-- **Format:** JSON array of vehicle objects with GPS coordinates, route, direction, and timestamp
+- **Format:** JSON array of vehicle objects with GPS coordinates, route, direction, agency, trip start time, and vehicle timestamp
 - **Update frequency:** Polled every 10 seconds
+- **Ingestion mode:** Live REST polling converted into a Kafka stream. It is not an offline log-file input.
+- **Kafka schema:** `vehicle_id`, `label`, `license_plate`, `route_id`, `direction_id`, `agency_id`, `trip_start_time`, `latitude`, `longitude`, `timestamp`, `ingested_at`
+
+---
+
+## Metric Definitions And Prediction
+
+The detailed metric contract is maintained in [docs/analytics_spec.md](docs/analytics_spec.md). The important distinction is that telemetry freshness and schedule delay are different signals.
+
+| Metric | Question answered | Output |
+|--------|-------------------|--------|
+| Telemetry freshness | Is the live GPS feed current enough to trust? | `transit.telemetry_freshness_metrics` |
+| Stop-level schedule delay | How late or early was a vehicle at a matched GTFS stop? | `transit.stop_delay_events` |
+| Route delay | How delayed is a route and direction in the current window? | `transit.route_delay_metrics` |
+| Bunching | Are vehicles on the same route too close together? | `transit.bunching_events` |
+| Service gaps | Did a route or direction lose visible service coverage? | `transit.service_gap_alerts` |
+| Speed | Which routes or segments are moving slowly? | `transit.segment_speed_stats` |
+| Dwell time | How long do vehicles remain near stops? | `transit.stop_dwell_times` |
+| Geographic hotspots | Which zones repeatedly accumulate delay and low speed? | `transit.geo_delay_hotspots` |
+| Delay prediction | Which routes are likely to be delayed in the next horizon? | `transit.route_delay_predictions` |
+| Feature attribution | Which recent features are associated with the prediction? | `transit.delay_feature_attributions` |
+
+Prediction uses the project's own data first: GTFS schedule, live GPS-derived delay, speed, bunching, service gaps, dwell time, route type, time of day, and geographic hotspot score. The first trainable model is a scikit-learn route-delay regressor trained from `transit.realtime_feature_windows` with `scripts/train_delay_model.py`. Until enough future-labeled feature windows are available, the inference runner uses a warm-start baseline so `transit.route_delay_predictions` is populated during the first live session. External data such as weather, incidents, and roadwork can be added later, but it is not required for the core semester project.
+
+The GTFS matcher is the owner of `transit.route_delay_metrics`; Flink now keeps feed freshness in `transit.telemetry_freshness_metrics` instead of writing timestamp-age proxy rows into the delay table.
 
 ---
 
@@ -239,13 +321,21 @@ Route bunching, service gaps, and reliability scoring.
 - **Total gap duration chart:** cumulative downtime per route
 - **Most unreliable routes ranking:** top 10 by total service gaps
 
+### GTFS Delay And Predictions
+Live GTFS schedule matching, generated feature windows, hotspots, and route forecasts.
+- **Runtime status KPIs:** GTFS matches, feature windows, predictions, true delay, predicted delay, and critical route count
+- **True delay time-series:** average and p95 GTFS route delay from `transit.route_delay_metrics`
+- **Feature window table:** latest generated route features used by prediction
+- **Prediction time-series and table:** latest route delay forecasts, risk level, confidence, model version, and target time
+- **Hotspot map and table:** geographic delay clusters from `transit.geo_delay_hotspots`
+
 ---
 
 ## Team Contributions
 
 ### Robert Grancsa
 
-Responsible for **infrastructure architecture and database design**. Set up the Docker Compose orchestration with all five services (Kafka KRaft, Flink JobManager/TaskManager, TimescaleDB, Grafana), including health checks, volumes, and networking. Designed and implemented all database schemas: the GTFS relational tables (`001_gtfs_tables.sql`), the five analytics hypertables with TimescaleDB retention policies (`002_analytics_tables.sql`), and the seven Grafana-ready SQL views (`003_grafana_views.sql`). Built the Fleet Overview dashboard with the live Geomap panel, KPI stats, and route status tables.
+Responsible for **infrastructure architecture and database design**. Set up the Docker Compose orchestration with Kafka KRaft, Flink JobManager/TaskManager, TimescaleDB, Grafana, and Python analytics workers, including health checks, volumes, and networking. Designed and implemented all database schemas: the GTFS relational tables (`001_gtfs_tables.sql`), the five analytics hypertables with TimescaleDB retention policies (`002_analytics_tables.sql`), and the seven Grafana-ready SQL views (`003_grafana_views.sql`). Built the Fleet Overview dashboard with the live Geomap panel, KPI stats, and route status tables.
 
 **Key commits:**
 - `docs: add project README and proposal`
