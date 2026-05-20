@@ -1,4 +1,4 @@
-"""GTFS Ingestion Service — Downloads, parses, and loads TPBI GTFS data into PostgreSQL."""
+"""GTFS Ingestion Service - Downloads, parses, and loads TPBI GTFS data into PostgreSQL."""
 
 from __future__ import annotations
 
@@ -165,7 +165,12 @@ def _bulk_insert(
 
 def run_migration(conn: psycopg2.extensions.connection) -> None:
     """Execute the GTFS schema migration SQL file."""
-    migration_path = Path(__file__).resolve().parent.parent.parent / "sql" / "migrations" / "001_gtfs_tables.sql"
+    migration_path = (
+        Path(__file__).resolve().parent.parent.parent
+        / "sql"
+        / "migrations"
+        / "001_gtfs_tables.sql"
+    )
     logger.info("Running migration: %s", migration_path.name)
     sql = migration_path.read_text(encoding="utf-8")
     with conn.cursor() as cur:
@@ -189,7 +194,7 @@ def ingest_gtfs(gtfs_url: str | None = None) -> dict[str, int]:
 
         for filename, table, columns in GTFS_LOAD_ORDER:
             if filename not in zf.namelist():
-                logger.warning("Skipping %s — not found in GTFS archive", filename)
+                logger.warning("Skipping %s - not found in GTFS archive", filename)
                 continue
 
             logger.info("Loading %s → %s ...", filename, table)

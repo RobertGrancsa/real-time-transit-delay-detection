@@ -1,4 +1,5 @@
-"""PyFlink Processing Pipeline — Real-time transit analytics.
+# pyright: reportMissingImports=false
+"""PyFlink Processing Pipeline - Real-time transit analytics.
 
 This job reads live vehicle telemetry from Kafka, applies time-windowed
 analytics (delay computation, bunching detection, service gap alerts,
@@ -20,8 +21,8 @@ Usage:
 
 from __future__ import annotations
 
-import os
 import logging
+import os
 
 from pyflink.datastream import StreamExecutionEnvironment
 from pyflink.table import EnvironmentSettings, StreamTableEnvironment
@@ -29,10 +30,15 @@ from pyflink.table import EnvironmentSettings, StreamTableEnvironment
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Configuration — read from env vars with Docker-compose defaults
+# Configuration read from env vars with Docker Compose defaults
 # ---------------------------------------------------------------------------
 KAFKA_BOOTSTRAP = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC_LIVE_TELEMETRY", "transit-live-telemetry")
+WATERMARK_LAG_SECONDS = int(os.getenv("ANALYTICS_WATERMARK_LAG_SECONDS", "15"))
+BUNCHING_THRESHOLD_SECONDS = int(os.getenv("ANALYTICS_BUNCHING_THRESHOLD_SECONDS", "120"))
+SERVICE_GAP_THRESHOLD_SECONDS = int(
+    os.getenv("ANALYTICS_SERVICE_GAP_THRESHOLD_MINUTES", "10")
+) * 60
 
 PG_URL = "jdbc:postgresql://{}:{}/{}".format(
     os.getenv("POSTGRES_HOST", "timescaledb"),
@@ -60,7 +66,7 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
     """Register all sources, sinks, and processing queries."""
 
     # -----------------------------------------------------------------------
-    # 1. Kafka Source — live vehicle telemetry
+    # 1. Kafka Source - live vehicle telemetry
     # -----------------------------------------------------------------------
     # The producer writes flat JSON keyed by route_id.
     # We extract event_time from the `timestamp` field (epoch seconds) and
@@ -79,7 +85,7 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
             `timestamp`      BIGINT,
             ingested_at      STRING,
             event_time AS TO_TIMESTAMP_LTZ(`timestamp`, 0),
-            WATERMARK FOR event_time AS event_time - INTERVAL '15' SECOND
+            WATERMARK FOR event_time AS event_time - INTERVAL '{WATERMARK_LAG_SECONDS}' SECOND
         ) WITH (
             'connector' = 'kafka',
             'topic' = '{KAFKA_TOPIC}',
@@ -93,7 +99,7 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
     """)
 
     # -----------------------------------------------------------------------
-    # 2. JDBC Sinks — one per analytics output table
+    # 2. JDBC Sinks - one per analytics output table
     # -----------------------------------------------------------------------
 
     # 2a. Raw vehicle positions sink (for replay / dashboard map)
@@ -114,20 +120,21 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
         )
     """)
 
-    # 2b. Route delay metrics sink
+    # 2b. Telemetry freshness sink
     t_env.execute_sql(f"""
-        CREATE TABLE IF NOT EXISTS sink_route_delay_metrics (
-            window_start     TIMESTAMP(3),
-            window_end       TIMESTAMP(3),
-            route_id         STRING,
-            direction_id     SMALLINT,
-            vehicle_count    INT,
-            avg_delay_sec    DOUBLE,
-            max_delay_sec    DOUBLE,
-            min_delay_sec    DOUBLE,
-            computed_at      TIMESTAMP(3)
+        CREATE TABLE IF NOT EXISTS sink_telemetry_freshness_metrics (
+            window_start       TIMESTAMP(3),
+            window_end         TIMESTAMP(3),
+            route_id           STRING,
+            direction_id       SMALLINT,
+            vehicle_count      INT,
+            avg_freshness_sec  DOUBLE,
+            max_freshness_sec  DOUBLE,
+            min_freshness_sec  DOUBLE,
+            p95_freshness_sec  DOUBLE,
+            computed_at        TIMESTAMP(3)
         ) WITH (
-            {_jdbc_opts('transit.route_delay_metrics')}
+            {_jdbc_opts('transit.telemetry_freshness_metrics')}
         )
     """)
 
@@ -179,13 +186,13 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
     """)
 
     # -----------------------------------------------------------------------
-    # 3. Processing Queries — uses Flink SQL windowing functions
+    # 3. Processing Queries - uses Flink SQL windowing functions
     # -----------------------------------------------------------------------
 
     # Create a StatementSet so all INSERT queries run as a single job graph
     stmt_set = t_env.create_statement_set()
 
-    # 3a. Raw positions passthrough — store every telemetry event
+    # 3a. Raw positions passthrough - store every telemetry event
     #     This feeds the Grafana map panel with live vehicle locations.
     stmt_set.add_insert_sql("""
         INSERT INTO sink_vehicle_positions
@@ -203,34 +210,29 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
         FROM kafka_telemetry
     """)
 
-    # 3b. Route Delay Metrics — 1-minute tumbling windows
-    #     Computes the difference between the vehicle's reported timestamp and
-    #     the current processing time as a proxy for schedule adherence.
-    #     (A full delay computation would join with GTFS stop_times; this gives
-    #      a useful "freshness" metric and route-level aggregation.)
+    # 3b. Telemetry freshness metrics, 1-minute tumbling windows
+    #     This is a data-quality metric. It is intentionally separate from
+    #     schedule delay so dashboards can label each signal correctly.
     stmt_set.add_insert_sql("""
-        INSERT INTO sink_route_delay_metrics
+        INSERT INTO sink_telemetry_freshness_metrics
         SELECT
             CAST(TUMBLE_START(event_time, INTERVAL '1' MINUTE) AS TIMESTAMP(3)) AS window_start,
             CAST(TUMBLE_END(event_time, INTERVAL '1' MINUTE) AS TIMESTAMP(3))   AS window_end,
             route_id,
             CAST(direction_id AS SMALLINT),
             CAST(COUNT(DISTINCT vehicle_id) AS INT) AS vehicle_count,
-            AVG(delay_sec)  AS avg_delay_sec,
-            MAX(delay_sec)  AS max_delay_sec,
-            MIN(delay_sec)  AS min_delay_sec,
-            LOCALTIMESTAMP   AS computed_at
+            AVG(freshness_sec)  AS avg_freshness_sec,
+            MAX(freshness_sec)  AS max_freshness_sec,
+            MIN(freshness_sec)  AS min_freshness_sec,
+            CAST(NULL AS DOUBLE) AS p95_freshness_sec,
+            LOCALTIMESTAMP      AS computed_at
         FROM (
             SELECT
                 route_id,
                 direction_id,
                 vehicle_id,
                 event_time,
-                -- Delay proxy: how old the GPS fix is relative to Flink processing time.
-                -- Large values indicate the vehicle is "stale" or delayed in reporting.
-                CAST(
-                    (UNIX_TIMESTAMP() - `timestamp`) AS DOUBLE
-                ) AS delay_sec
+                CAST((UNIX_TIMESTAMP() - `timestamp`) AS DOUBLE) AS freshness_sec
             FROM kafka_telemetry
         )
         GROUP BY
@@ -239,11 +241,11 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
             direction_id
     """)
 
-    # 3c. Route Bunching Detection — 30-second tumbling windows
+    # 3c. Route bunching detection, 30-second tumbling windows
     #     Within each window, for each route+direction, self-join to find
-    #     pairs of distinct vehicles whose timestamps are <120s apart.
+    #     pairs of distinct vehicles under the configured time threshold.
     #     This detects bunching (two buses arriving nearly simultaneously).
-    stmt_set.add_insert_sql("""
+    stmt_set.add_insert_sql(f"""
         INSERT INTO sink_bunching_events
         SELECT
             CAST(a.event_time AS TIMESTAMP(3)),
@@ -263,15 +265,15 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
             AND a.vehicle_id < b.vehicle_id
             AND b.event_time BETWEEN a.event_time - INTERVAL '30' SECOND
                                  AND a.event_time + INTERVAL '30' SECOND
-        WHERE ABS(a.`timestamp` - b.`timestamp`) < 120
+        WHERE ABS(a.`timestamp` - b.`timestamp`) < {BUNCHING_THRESHOLD_SECONDS}
     """)
 
-    # 3d. Service Gap Alerts — detect routes with no vehicle for >10 minutes
+    # 3d. Service gap alerts for routes with insufficient vehicle coverage
     #     Uses a 5-minute tumbling window: if a route+direction appears in one
     #     window but NOT in the next, we emit a gap alert.
     #     Simplified approach: flag routes where the max time between consecutive
     #     events in a 10-minute window exceeds a threshold.
-    stmt_set.add_insert_sql("""
+    stmt_set.add_insert_sql(f"""
         INSERT INTO sink_service_gap_alerts
         SELECT
             CAST(TUMBLE_START(event_time, INTERVAL '10' MINUTE) AS TIMESTAMP(3))  AS gap_start,
@@ -287,10 +289,12 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
             route_id,
             direction_id
         HAVING COUNT(DISTINCT vehicle_id) <= 1
-           AND TIMESTAMPDIFF(SECOND, MIN(event_time), MAX(event_time)) > 600
+            AND TIMESTAMPDIFF(
+                SECOND, MIN(event_time), MAX(event_time)
+            ) > {SERVICE_GAP_THRESHOLD_SECONDS}
     """)
 
-    # 3e. Segment Speed Aggregates — 15-minute tumbling windows
+    # 3e. Segment speed aggregates, 15-minute tumbling windows
     #     Estimates average speed per route/direction using the Haversine
     #     distance between consecutive position reports of each vehicle.
     #     We use a subquery with LAG() to get previous position per vehicle,
@@ -353,7 +357,7 @@ def build_pipeline(t_env: StreamTableEnvironment) -> None:
 
 
 def main() -> None:
-    """Entry point — configure Flink environment and launch the pipeline."""
+    """Entry point - configure Flink environment and launch the pipeline."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -379,7 +383,7 @@ def main() -> None:
     # With 4 parallelism and 3 partitions, one subtask has no partition assigned.
     t_env.get_config().set("table.exec.source.idle-timeout", "15s")
 
-    logger.info("Building Flink pipeline — Kafka(%s) → Processing → JDBC(%s)", KAFKA_TOPIC, PG_URL)
+    logger.info("Building Flink pipeline - Kafka(%s) → Processing → JDBC(%s)", KAFKA_TOPIC, PG_URL)
     build_pipeline(t_env)
     logger.info("Pipeline submitted successfully.")
 

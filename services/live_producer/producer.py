@@ -1,4 +1,4 @@
-"""Async Kafka Producer — Polls live vehicle positions and publishes to Kafka.
+"""Async Kafka Producer - Polls live vehicle positions and publishes to Kafka.
 
 Continuously fetches GPS telemetry from the mo-bi.ro REST API every N seconds,
 sanitizes the payloads, and produces them as JSON messages to the
@@ -35,7 +35,7 @@ def _build_producer() -> Producer:
         {
             "bootstrap.servers": settings.kafka.bootstrap_servers,
             "client.id": "transit-live-producer",
-            # Batching for throughput — flush at most every 500ms or 64KB
+            # Batching for throughput - flush at most every 500ms or 64KB
             "linger.ms": 500,
             "batch.size": 65536,
             # Idempotent producer prevents duplicates on retries
@@ -80,7 +80,7 @@ def _sanitize_vehicle(raw: dict[str, Any]) -> dict[str, Any] | None:
             return None
 
         vehicle_id = vehicle.get("id", "")
-        # mo-bi.ro sometimes returns '0' for unknown vehicles — keep them but flag
+        # mo-bi.ro sometimes returns '0' for unknown vehicles - keep them but flag
         return {
             "vehicle_id": str(vehicle_id),
             "label": str(vehicle.get("label", "")),
@@ -95,14 +95,15 @@ def _sanitize_vehicle(raw: dict[str, Any]) -> dict[str, Any] | None:
             "ingested_at": datetime.now(timezone.utc).isoformat(),
         }
     except (TypeError, ValueError, AttributeError) as exc:
-        logger.debug("Skipping malformed vehicle record: %s — %s", raw.get("id"), exc)
+        logger.debug("Skipping malformed vehicle record: %s - %s", raw.get("id"), exc)
         return None
 
 
 async def _fetch_vehicles(session: aiohttp.ClientSession) -> list[dict[str, Any]]:
     """Fetch the full vehicle list from the live API. Returns [] on failure."""
     try:
-        async with session.get(settings.live_api.url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with session.get(settings.live_api.url, timeout=timeout) as resp:
             if resp.status != 200:
                 logger.warning("Live API returned status %d", resp.status)
                 return []
@@ -134,7 +135,7 @@ async def produce_loop() -> None:
             signal.signal(sig, _stop)
 
     logger.info(
-        "Starting live producer — topic=%s, poll_interval=%ds, api=%s",
+        "Starting live producer - topic=%s, poll_interval=%ds, api=%s",
         topic, interval, settings.live_api.url,
     )
 
@@ -175,7 +176,7 @@ async def produce_loop() -> None:
             if sleep_time > 0 and running:
                 await asyncio.sleep(sleep_time)
 
-    # Final flush — deliver all remaining messages (up to 10s timeout)
+    # Final flush - deliver all remaining messages (up to 10s timeout)
     remaining = producer.flush(timeout=10)
     if remaining > 0:
         logger.warning("%d messages were not delivered before shutdown", remaining)

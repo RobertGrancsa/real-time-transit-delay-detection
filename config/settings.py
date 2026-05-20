@@ -1,4 +1,4 @@
-"""Centralized configuration — reads from environment variables with Docker-friendly defaults."""
+"""Centralized configuration - reads from environment variables with Docker-friendly defaults."""
 
 from __future__ import annotations
 
@@ -19,6 +19,10 @@ def _env(key: str, default: str = "") -> str:
 
 def _env_int(key: str, default: int = 0) -> int:
     return int(os.getenv(key, str(default)))
+
+
+def _env_float(key: str, default: float = 0.0) -> float:
+    return float(os.getenv(key, str(default)))
 
 
 @dataclass(frozen=True)
@@ -78,13 +82,77 @@ class FlinkConfig:
 
 
 @dataclass(frozen=True)
+class AnalyticsConfig:
+    watermark_lag_seconds: int = field(
+        default_factory=lambda: _env_int("ANALYTICS_WATERMARK_LAG_SECONDS", 15)
+    )
+    stop_geofence_meters: float = field(
+        default_factory=lambda: _env_float("ANALYTICS_STOP_GEOFENCE_METERS", 75.0)
+    )
+    trip_start_tolerance_minutes: int = field(
+        default_factory=lambda: _env_int("ANALYTICS_TRIP_START_TOLERANCE_MINUTES", 20)
+    )
+    bunching_threshold_seconds: int = field(
+        default_factory=lambda: _env_int("ANALYTICS_BUNCHING_THRESHOLD_SECONDS", 120)
+    )
+    service_gap_threshold_minutes: int = field(
+        default_factory=lambda: _env_int("ANALYTICS_SERVICE_GAP_THRESHOLD_MINUTES", 10)
+    )
+    feature_window_minutes: int = field(
+        default_factory=lambda: _env_int("ANALYTICS_FEATURE_WINDOW_MINUTES", 15)
+    )
+    schedule_timezone: str = field(
+        default_factory=lambda: _env("ANALYTICS_SCHEDULE_TIMEZONE", "Europe/Bucharest")
+    )
+    gtfs_match_interval_seconds: int = field(
+        default_factory=lambda: _env_int("ANALYTICS_GTFS_MATCH_INTERVAL_SECONDS", 30)
+    )
+    gtfs_match_lookback_minutes: int = field(
+        default_factory=lambda: _env_int("ANALYTICS_GTFS_MATCH_LOOKBACK_MINUTES", 120)
+    )
+    gtfs_match_batch_size: int = field(
+        default_factory=lambda: _env_int("ANALYTICS_GTFS_MATCH_BATCH_SIZE", 20)
+    )
+    gtfs_match_schedule_tolerance_minutes: int = field(
+        default_factory=lambda: _env_int("ANALYTICS_GTFS_MATCH_SCHEDULE_TOLERANCE_MINUTES", 90)
+    )
+
+
+@dataclass(frozen=True)
+class PredictionConfig:
+    horizon_minutes: int = field(
+        default_factory=lambda: _env_int("PREDICTION_HORIZON_MINUTES", 30)
+    )
+    high_delay_threshold_seconds: int = field(
+        default_factory=lambda: _env_int("PREDICTION_HIGH_DELAY_THRESHOLD_SECONDS", 300)
+    )
+    interval_seconds: int = field(
+        default_factory=lambda: _env_int("PREDICTION_INTERVAL_SECONDS", 900)
+    )
+    model_path: str = field(
+        default_factory=lambda: _env("PREDICTION_MODEL_PATH", "models/delay_model.joblib")
+    )
+    model_version: str = field(
+        default_factory=lambda: _env("PREDICTION_MODEL_VERSION", "local-dev")
+    )
+    cache_ttl_seconds: int = field(
+        default_factory=lambda: _env_int("PREDICTION_CACHE_TTL_SECONDS", 300)
+    )
+    cache_size: int = field(
+        default_factory=lambda: _env_int("PREDICTION_CACHE_SIZE", 300)
+    )
+
+
+@dataclass(frozen=True)
 class Settings:
     postgres: PostgresConfig = field(default_factory=PostgresConfig)
     kafka: KafkaConfig = field(default_factory=KafkaConfig)
     live_api: LiveApiConfig = field(default_factory=LiveApiConfig)
     gtfs: GtfsConfig = field(default_factory=GtfsConfig)
     flink: FlinkConfig = field(default_factory=FlinkConfig)
+    analytics: AnalyticsConfig = field(default_factory=AnalyticsConfig)
+    prediction: PredictionConfig = field(default_factory=PredictionConfig)
 
 
-# Singleton — import this from anywhere: `from config.settings import settings`
+# Singleton - import this from anywhere: `from config.settings import settings`
 settings = Settings()

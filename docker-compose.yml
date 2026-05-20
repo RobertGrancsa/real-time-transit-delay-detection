@@ -93,6 +93,9 @@ services:
       # Forwarded to PyFlink jobs via env vars
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC_LIVE_TELEMETRY: transit-live-telemetry
+      ANALYTICS_WATERMARK_LAG_SECONDS: ${ANALYTICS_WATERMARK_LAG_SECONDS:-15}
+      ANALYTICS_BUNCHING_THRESHOLD_SECONDS: ${ANALYTICS_BUNCHING_THRESHOLD_SECONDS:-120}
+      ANALYTICS_SERVICE_GAP_THRESHOLD_MINUTES: ${ANALYTICS_SERVICE_GAP_THRESHOLD_MINUTES:-10}
       POSTGRES_HOST: timescaledb
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB:-transit}
@@ -130,6 +133,9 @@ services:
         taskmanager.memory.process.size: 2048m
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC_LIVE_TELEMETRY: transit-live-telemetry
+      ANALYTICS_WATERMARK_LAG_SECONDS: ${ANALYTICS_WATERMARK_LAG_SECONDS:-15}
+      ANALYTICS_BUNCHING_THRESHOLD_SECONDS: ${ANALYTICS_BUNCHING_THRESHOLD_SECONDS:-120}
+      ANALYTICS_SERVICE_GAP_THRESHOLD_MINUTES: ${ANALYTICS_SERVICE_GAP_THRESHOLD_MINUTES:-10}
       POSTGRES_HOST: timescaledb
       POSTGRES_PORT: "5432"
       POSTGRES_DB: ${POSTGRES_DB:-transit}
@@ -144,7 +150,70 @@ services:
       - transit-net
 
   # ---------------------------------------------------------------------------
-  # Grafana — Dashboards & visualization (auto-provisioned PostgreSQL source)
+  # GTFS Matcher - true schedule delay and ML feature generation
+  # ---------------------------------------------------------------------------
+  gtfs-matcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: transit-python-services:0.1
+    container_name: transit-gtfs-matcher
+    command: python -m services.gtfs_matching.matcher
+    environment:
+      POSTGRES_HOST: timescaledb
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-transit}
+      POSTGRES_USER: ${POSTGRES_USER:-transit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-transit_secret}
+      ANALYTICS_STOP_GEOFENCE_METERS: ${ANALYTICS_STOP_GEOFENCE_METERS:-75}
+      ANALYTICS_FEATURE_WINDOW_MINUTES: ${ANALYTICS_FEATURE_WINDOW_MINUTES:-15}
+      ANALYTICS_SCHEDULE_TIMEZONE: ${ANALYTICS_SCHEDULE_TIMEZONE:-Europe/Bucharest}
+      ANALYTICS_GTFS_MATCH_INTERVAL_SECONDS: ${ANALYTICS_GTFS_MATCH_INTERVAL_SECONDS:-30}
+      ANALYTICS_GTFS_MATCH_LOOKBACK_MINUTES: ${ANALYTICS_GTFS_MATCH_LOOKBACK_MINUTES:-120}
+      ANALYTICS_GTFS_MATCH_BATCH_SIZE: ${ANALYTICS_GTFS_MATCH_BATCH_SIZE:-20}
+      ANALYTICS_GTFS_MATCH_SCHEDULE_TOLERANCE_MINUTES: ${ANALYTICS_GTFS_MATCH_SCHEDULE_TOLERANCE_MINUTES:-90}
+      PREDICTION_HIGH_DELAY_THRESHOLD_SECONDS: ${PREDICTION_HIGH_DELAY_THRESHOLD_SECONDS:-300}
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - transit-net
+
+  # ---------------------------------------------------------------------------
+  # Delay Predictor - route delay forecasts from realtime feature windows
+  # ---------------------------------------------------------------------------
+  delay-predictor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: transit-python-services:0.1
+    container_name: transit-delay-predictor
+    command: python -m services.predictor.predictor
+    environment:
+      POSTGRES_HOST: timescaledb
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB:-transit}
+      POSTGRES_USER: ${POSTGRES_USER:-transit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-transit_secret}
+      ANALYTICS_FEATURE_WINDOW_MINUTES: ${ANALYTICS_FEATURE_WINDOW_MINUTES:-15}
+      ANALYTICS_SCHEDULE_TIMEZONE: ${ANALYTICS_SCHEDULE_TIMEZONE:-Europe/Bucharest}
+      PREDICTION_HORIZON_MINUTES: ${PREDICTION_HORIZON_MINUTES:-30}
+      PREDICTION_HIGH_DELAY_THRESHOLD_SECONDS: ${PREDICTION_HIGH_DELAY_THRESHOLD_SECONDS:-300}
+      PREDICTION_INTERVAL_SECONDS: ${PREDICTION_INTERVAL_SECONDS:-900}
+      PREDICTION_MODEL_PATH: ${PREDICTION_MODEL_PATH:-models/delay_model.joblib}
+      PREDICTION_MODEL_VERSION: ${PREDICTION_MODEL_VERSION:-local-dev}
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      gtfs-matcher:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - transit-net
+
+  # ---------------------------------------------------------------------------
+  # Grafana - Dashboards & visualization (auto-provisioned PostgreSQL source)
   # ---------------------------------------------------------------------------
   grafana:
     image: grafana/grafana:latest
@@ -155,6 +224,8 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
       GF_INSTALL_PLUGINS: grafana-worldmap-panel
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
