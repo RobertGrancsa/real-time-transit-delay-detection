@@ -4,7 +4,7 @@
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
--- 1. Vehicle Positions — raw telemetry sink from Kafka (used for replay/debug)
+-- 1. Vehicle Positions - raw telemetry sink from Kafka (used for replay/debug)
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS transit.vehicle_positions (
     event_time       TIMESTAMPTZ NOT NULL,
@@ -31,8 +31,10 @@ CREATE INDEX IF NOT EXISTS idx_vp_vehicle_time
 
 
 -- ---------------------------------------------------------------------------
--- 2. Route Delay Metrics — per-vehicle delay computed against GTFS schedule
---    Flink compares live position timestamps with expected stop_times
+-- 2. Route Delay Metrics: route-window schedule-delay target table.
+--    Final semantics: aggregate matched stop_delay_events against GTFS stop_times.
+--    Legacy rows may contain the older timestamp-freshness proxy; use
+--    telemetry_freshness_metrics for feed-lag analysis after migration 005.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS transit.route_delay_metrics (
     window_start     TIMESTAMPTZ NOT NULL,
@@ -57,7 +59,7 @@ CREATE INDEX IF NOT EXISTS idx_rdm_route_window
 
 
 -- ---------------------------------------------------------------------------
--- 3. Route Bunching Events — two vehicles on the same route/direction
+-- 3. Route Bunching Events - two vehicles on the same route/direction
 --    detected within a configurable threshold (e.g., <2 min apart).
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS transit.bunching_events (
@@ -84,7 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_be_route_time
 
 
 -- ---------------------------------------------------------------------------
--- 4. Service Gap Alerts — route/direction with no vehicle seen for too long.
+-- 4. Service Gap Alerts - route/direction with no vehicle seen for too long.
 --    Flink Session windows detect prolonged absence per route.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS transit.service_gap_alerts (
@@ -106,7 +108,7 @@ CREATE INDEX IF NOT EXISTS idx_sga_route_time
 
 
 -- ---------------------------------------------------------------------------
--- 5. Segment Speed Aggregates — avg speed per route segment over 15-min
+-- 5. Segment Speed Aggregates - avg speed per route segment over 15-min
 --    tumbling windows.  Used for congestion hotspot detection.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS transit.segment_speed_stats (
@@ -131,7 +133,7 @@ CREATE INDEX IF NOT EXISTS idx_sss_route_window
 
 
 -- ---------------------------------------------------------------------------
--- Retention policies — automatically drop old data (adjustable)
+-- Retention policies - automatically drop old data (adjustable)
 -- ---------------------------------------------------------------------------
 SELECT add_retention_policy('transit.vehicle_positions', INTERVAL '7 days', if_not_exists => TRUE);
 SELECT add_retention_policy('transit.bunching_events', INTERVAL '30 days', if_not_exists => TRUE);
