@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir --upgrade pip \
 	&& pip install --no-cache-dir \
 		"aiohttp>=3.10.0" \
 		"confluent-kafka>=2.6.0" \
+		"fastapi>=0.110.0" \
 		"gtfs-realtime-bindings>=1.0.0" \
 		"joblib>=1.4.0" \
 		"numpy>=1.26.0" \
@@ -20,6 +21,7 @@ RUN pip install --no-cache-dir --upgrade pip \
 		"requests>=2.32.0" \
 		"scikit-learn>=1.5.0" \
 		"setuptools>=68.0" \
+		"uvicorn>=0.27.0" \
 		"wheel" \
 	&& pip cache purge
 

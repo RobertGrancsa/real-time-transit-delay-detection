@@ -161,6 +161,7 @@ docker compose ps
 | Kafka | 9094 | - |
 | TimescaleDB | 5433 | `psql -h localhost -p 5433 -U transit -d transit` |
 | Flink Web UI | 8081 | http://localhost:8081 |
+| Transit UI | 8000 | http://localhost:8000 |
 | Grafana | 3000 | http://localhost:3000 (admin / admin) |
 
 ### Demo reset / seed script
@@ -275,6 +276,10 @@ This loads the trained model when `models/delay_model.joblib` exists. Before eno
 Navigate to http://localhost:3000. Local anonymous Viewer access is enabled for dashboards, and four dashboards are auto-provisioned under **Transit Dashboards**.
 
 Open the new GTFS and prediction dashboard directly at http://localhost:3000/d/gtfs-delay-predictions/gtfs-delay-and-predictions.
+
+### 13. Open the stop-to-stop trip planner
+
+Navigate to http://localhost:8000 to open the map UI. It shows GTFS stops/stations in Bucharest, lets you select an origin, destination, and departure time, then returns scheduled public-transit itineraries with direct trips or one transfer.
 
 ---
 
