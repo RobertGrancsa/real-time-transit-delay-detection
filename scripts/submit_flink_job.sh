@@ -15,8 +15,6 @@ FLINK_CONTAINER="transit-flink-jobmanager"
 JOB_PATH="/opt/flink/jobs/processing_job.py"
 
 echo "==> Submitting PyFlink processing job..."
-docker exec "${FLINK_CONTAINER}" flink run \
-    --python "${JOB_PATH}" \
-    -d
+docker exec "${FLINK_CONTAINER}" sh -lc "flink run -d -py '${JOB_PATH}'"
 
 echo "==> Job submitted. Check Flink dashboard at http://localhost:8081"

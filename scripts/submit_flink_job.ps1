@@ -14,8 +14,6 @@ $FlinkContainer = "transit-flink-jobmanager"
 $JobPath = "/opt/flink/jobs/processing_job.py"
 
 Write-Host "==> Submitting PyFlink processing job..."
-docker exec $FlinkContainer flink run `
-    --python $JobPath `
-    -d
+docker exec $FlinkContainer sh -lc "flink run -d -py $JobPath"
 
 Write-Host "==> Job submitted. Check Flink dashboard at http://localhost:8081"
