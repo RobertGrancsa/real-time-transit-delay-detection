@@ -1,0 +1,364 @@
+{
+  "uid": "gtfs-delay-predictions",
+  "title": "GTFS Delay And Predictions",
+  "description": "Live GTFS schedule delay, feature windows, geographic hotspots, and route delay predictions.",
+  "tags": ["transit", "gtfs", "prediction", "delay"],
+  "timezone": "Europe/Bucharest",
+  "editable": true,
+  "refresh": "15s",
+  "time": { "from": "now-2h", "to": "now" },
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "route_type",
+        "label": "Vehicle Type",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "timescaledb" },
+        "query": "SELECT DISTINCT route_type_label AS __text, route_type::text AS __value FROM transit.v_route_types ORDER BY route_type_label",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 1,
+        "sort": 1
+      },
+      {
+        "name": "route_id",
+        "label": "Route",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "timescaledb" },
+        "query": "SELECT DISTINCT route_short_name AS __text, route_id AS __value FROM transit.v_route_types WHERE route_type IN ($route_type) ORDER BY route_short_name",
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" },
+        "refresh": 1,
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Runtime Status",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 2,
+      "title": "GTFS Matches",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS \"GTFS Matches\" FROM transit.stop_delay_events WHERE observed_time BETWEEN $__timeFrom() AND $__timeTo() AND route_id IN ($route_id)",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 10 }, { "color": "green", "value": 50 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "orientation": "auto" }
+    },
+    {
+      "id": 3,
+      "title": "Feature Windows",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS \"Feature Windows\" FROM transit.realtime_feature_windows WHERE feature_time BETWEEN $__timeFrom() AND $__timeTo() AND route_id IN ($route_id)",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 10 }, { "color": "green", "value": 30 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "orientation": "auto" }
+    },
+    {
+      "id": 4,
+      "title": "Predictions",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(*) AS \"Predictions\" FROM transit.route_delay_predictions WHERE prediction_time BETWEEN $__timeFrom() AND $__timeTo() AND route_id IN ($route_id)",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "yellow", "value": 10 }, { "color": "green", "value": 30 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "orientation": "auto" }
+    },
+    {
+      "id": 5,
+      "title": "Average True Delay",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT ROUND(AVG(delay_sec)::numeric, 1) AS \"Avg True Delay\" FROM transit.stop_delay_events WHERE observed_time BETWEEN $__timeFrom() AND $__timeTo() AND route_id IN ($route_id)",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 120 }, { "color": "red", "value": 300 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "orientation": "auto" }
+    },
+    {
+      "id": 6,
+      "title": "Average Predicted Delay",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT ROUND(AVG(predicted_delay_sec)::numeric, 1) AS \"Avg Predicted Delay\" FROM transit.route_delay_predictions WHERE prediction_time BETWEEN $__timeFrom() AND $__timeTo() AND route_id IN ($route_id)",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 150 }, { "color": "red", "value": 300 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "orientation": "auto" }
+    },
+    {
+      "id": 7,
+      "title": "Critical Routes",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 1 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT COUNT(DISTINCT route_id) AS \"Critical Routes\" FROM transit.route_delay_predictions WHERE prediction_time BETWEEN $__timeFrom() AND $__timeTo() AND risk_level = 'critical' AND route_id IN ($route_id)",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "textMode": "value_and_name", "orientation": "auto" }
+    },
+    {
+      "id": 10,
+      "title": "True GTFS Delay",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 11,
+      "title": "True Route Delay Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 9, "w": 14, "x": 0, "y": 6 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT window_start AS time, COALESCE(r.route_short_name, m.route_id) AS metric, m.avg_delay_sec AS \"Avg Delay\" FROM transit.route_delay_metrics m LEFT JOIN transit.routes r ON r.route_id = m.route_id WHERE m.window_start BETWEEN $__timeFrom() AND $__timeTo() AND m.route_id IN ($route_id) ORDER BY window_start",
+          "format": "time_series",
+          "refId": "A"
+        },
+        {
+          "rawSql": "SELECT window_start AS time, COALESCE(r.route_short_name, m.route_id) || ' p95' AS metric, m.p95_delay_sec AS \"P95 Delay\" FROM transit.route_delay_metrics m LEFT JOIN transit.routes r ON r.route_id = m.route_id WHERE m.window_start BETWEEN $__timeFrom() AND $__timeTo() AND m.route_id IN ($route_id) ORDER BY window_start",
+          "format": "time_series",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 10, "lineWidth": 2, "pointSize": 4, "showPoints": "auto", "stacking": { "mode": "none" } },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 120 }, { "color": "red", "value": 300 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] } }
+    },
+    {
+      "id": 12,
+      "title": "Latest Route Feature Windows",
+      "type": "table",
+      "gridPos": { "h": 9, "w": 10, "x": 14, "y": 6 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT f.feature_time AS \"Feature Time\", COALESCE(r.route_short_name, f.route_id) AS \"Route\", f.direction_id AS \"Dir\", ROUND(f.avg_delay_sec::numeric, 1) AS \"Avg Delay (s)\", ROUND(f.p95_delay_sec::numeric, 1) AS \"P95 Delay (s)\", ROUND(f.max_delay_sec::numeric, 1) AS \"Max Delay (s)\", f.vehicle_count AS \"Vehicles\", f.observation_count AS \"Observations\", ROUND(f.hotspot_score::numeric, 2) AS \"Hotspot\" FROM transit.realtime_feature_windows f LEFT JOIN transit.routes r ON r.route_id = f.route_id WHERE f.feature_time BETWEEN $__timeFrom() AND $__timeTo() AND f.route_id IN ($route_id) ORDER BY f.feature_time DESC, f.avg_delay_sec DESC LIMIT 50",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "filterable": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Avg Delay (s)" }, "properties": [ { "id": "unit", "value": "s" }, { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "basic" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 120 }, { "color": "red", "value": 300 } ] } } ] }
+        ]
+      },
+      "options": { "showHeader": true, "sortBy": [ { "displayName": "Feature Time", "desc": true } ], "footer": { "show": true, "reducer": ["count"], "countRows": true } }
+    },
+    {
+      "id": 20,
+      "title": "Predictions",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 21,
+      "title": "Predicted Delay Over Time",
+      "type": "timeseries",
+      "gridPos": { "h": 9, "w": 14, "x": 0, "y": 16 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT prediction_time AS time, COALESCE(r.route_short_name, p.route_id) AS metric, p.predicted_delay_sec AS \"Predicted Delay\" FROM transit.route_delay_predictions p LEFT JOIN transit.routes r ON r.route_id = p.route_id WHERE p.prediction_time BETWEEN $__timeFrom() AND $__timeTo() AND p.route_id IN ($route_id) ORDER BY prediction_time",
+          "format": "time_series",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "lineInterpolation": "smooth", "fillOpacity": 12, "lineWidth": 2, "pointSize": 5, "showPoints": "auto", "stacking": { "mode": "none" } },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 150 }, { "color": "red", "value": 300 } ] }
+        },
+        "overrides": []
+      },
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" }, "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] } }
+    },
+    {
+      "id": 22,
+      "title": "Latest Route Predictions",
+      "type": "table",
+      "gridPos": { "h": 9, "w": 10, "x": 14, "y": 16 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT p.prediction_time AS \"Prediction Time\", p.target_time AS \"Target Time\", COALESCE(r.route_short_name, p.route_id) AS \"Route\", p.direction_id AS \"Dir\", ROUND(p.predicted_delay_sec::numeric, 1) AS \"Predicted Delay (s)\", p.risk_level AS \"Risk\", ROUND(p.confidence::numeric, 2) AS \"Confidence\", p.model_version AS \"Model\", p.feature_time AS \"Feature Time\" FROM transit.route_delay_predictions p LEFT JOIN transit.routes r ON r.route_id = p.route_id WHERE p.prediction_time BETWEEN $__timeFrom() AND $__timeTo() AND p.route_id IN ($route_id) ORDER BY p.prediction_time DESC, p.predicted_delay_sec DESC LIMIT 75",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "filterable": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Predicted Delay (s)" }, "properties": [ { "id": "unit", "value": "s" }, { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "basic" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 150 }, { "color": "red", "value": 300 } ] } } ] }
+        ]
+      },
+      "options": { "showHeader": true, "sortBy": [ { "displayName": "Predicted Delay (s)", "desc": true } ], "footer": { "show": true, "reducer": ["count"], "countRows": true } }
+    },
+    {
+      "id": 30,
+      "title": "Geographic Delay Hotspots",
+      "type": "row",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 25 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 31,
+      "title": "Delay Hotspot Map",
+      "type": "geomap",
+      "gridPos": { "h": 11, "w": 14, "x": 0, "y": 26 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT centroid_lat AS latitude, centroid_lon AS longitude, COALESCE(r.route_short_name, h.route_id) AS \"Route\", h.direction_id AS \"Dir\", ROUND(h.avg_delay_sec::numeric, 1) AS \"Avg Delay (s)\", ROUND(h.p95_delay_sec::numeric, 1) AS \"P95 Delay (s)\", ROUND(h.hotspot_score::numeric, 2) AS \"Hotspot Score\", h.observation_count AS \"Observations\" FROM transit.geo_delay_hotspots h LEFT JOIN transit.routes r ON r.route_id = h.route_id WHERE h.window_start BETWEEN $__timeFrom() AND $__timeTo() AND h.route_id IN ($route_id) ORDER BY h.hotspot_score DESC LIMIT 300",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "options": {
+        "view": { "id": "coords", "lat": 44.4268, "lon": 26.1025, "zoom": 11 },
+        "basemap": { "type": "osm-standard", "name": "OpenStreetMap" },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Hotspots",
+            "config": {
+              "showLegend": true,
+              "style": { "size": { "field": "Hotspot Score", "fixed": 7, "min": 5, "max": 18 }, "color": { "field": "Avg Delay (s)", "fixed": "red" }, "opacity": 0.8, "symbol": { "mode": "fixed", "fixed": "img/icons/marker/circle.svg" } }
+            },
+            "location": { "mode": "coords", "latitude": "latitude", "longitude": "longitude" },
+            "tooltip": true
+          }
+        ],
+        "tooltip": { "mode": "details" },
+        "controls": { "showZoom": true, "mouseWheelZoom": true, "showAttribution": true }
+      }
+    },
+    {
+      "id": 32,
+      "title": "Top Delay Hotspots",
+      "type": "table",
+      "gridPos": { "h": 11, "w": 10, "x": 14, "y": 26 },
+      "datasource": { "type": "postgres", "uid": "timescaledb" },
+      "targets": [
+        {
+          "rawSql": "SELECT h.window_start AS \"Window\", COALESCE(r.route_short_name, h.route_id) AS \"Route\", h.direction_id AS \"Dir\", ROUND(h.centroid_lat::numeric, 5) AS \"Lat\", ROUND(h.centroid_lon::numeric, 5) AS \"Lon\", h.observation_count AS \"Observations\", ROUND(h.avg_delay_sec::numeric, 1) AS \"Avg Delay (s)\", ROUND(h.p95_delay_sec::numeric, 1) AS \"P95 Delay (s)\", ROUND(h.hotspot_score::numeric, 2) AS \"Hotspot\" FROM transit.geo_delay_hotspots h LEFT JOIN transit.routes r ON r.route_id = h.route_id WHERE h.window_start BETWEEN $__timeFrom() AND $__timeTo() AND h.route_id IN ($route_id) ORDER BY h.hotspot_score DESC LIMIT 75",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "filterable": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Hotspot" }, "properties": [ { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "basic" } }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 1.5 } ] } } ] }
+        ]
+      },
+      "options": { "showHeader": true, "sortBy": [ { "displayName": "Hotspot", "desc": true } ], "footer": { "show": true, "reducer": ["count"], "countRows": true } }
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "links": []
+}
