@@ -163,6 +163,38 @@ docker compose ps
 | Flink Web UI | 8081 | http://localhost:8081 |
 | Grafana | 3000 | http://localhost:3000 (admin / admin) |
 
+### Demo reset / seed script
+
+For a presentation run, use the demo script to prepare the full stack, seed GTFS, wait for live rows, and print the dashboard links.
+
+PowerShell:
+
+```powershell
+.\scripts\demo_reset.ps1
+```
+
+Bash:
+
+```bash
+./scripts/demo_reset.sh
+```
+
+For a clean database and fresh Docker volumes:
+
+```powershell
+.\scripts\demo_reset.ps1 -Reset -Force
+```
+
+```bash
+./scripts/demo_reset.sh --reset --force
+```
+
+Useful options:
+- `-CheckOnly` or `--check-only` prints the planned phases without changing anything.
+- `-ReloadGtfs` or `--reload-gtfs` forces the GTFS loader even when routes already exist.
+- `-SkipFlinkSubmit` or `--skip-flink-submit` avoids submitting another Flink job if one is already running.
+- `-TimeoutSeconds 1200` or `--timeout-seconds 1200` gives slow laptops more time to collect live rows.
+
 ### 4. Install Python dependencies
 
 ```bash

@@ -150,6 +150,28 @@ services:
       - transit-net
 
   # ---------------------------------------------------------------------------
+  # Live Producer - polls the public API and publishes Kafka telemetry
+  # ---------------------------------------------------------------------------
+  live-producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: transit-python-services:0.1
+    container_name: transit-live-producer
+    command: python -m services.live_producer.producer
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_LIVE_TELEMETRY: ${KAFKA_TOPIC_LIVE_TELEMETRY:-transit-live-telemetry}
+      LIVE_API_URL: ${LIVE_API_URL:-https://maps.mo-bi.ro/api/busData}
+      LIVE_API_POLL_INTERVAL_SECONDS: ${LIVE_API_POLL_INTERVAL_SECONDS:-10}
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - transit-net
+
+  # ---------------------------------------------------------------------------
   # GTFS Matcher - true schedule delay and ML feature generation
   # ---------------------------------------------------------------------------
   gtfs-matcher:
